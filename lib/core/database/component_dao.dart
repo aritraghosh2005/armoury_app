@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../models/component.dart';
@@ -125,23 +124,6 @@ class ComponentDao {
       ) >
       0;
 
-  static Map<String, Object?> _fromJson(Map<String, dynamic> item) => {
-    'id': item['id']?.toString() ?? '',
-    'namespace': _namespaceValue(item['namespace']),
-    'category': item['category']?.toString() ?? '',
-    'subcategory': item['subcategory']?.toString() ?? '',
-    'name': item['name']?.toString() ?? '',
-    'qty': (item['qty'] as num?)?.toInt() ?? 0,
-    'desc': item['desc']?.toString() ?? '',
-    'pic': item['pic']?.toString() ?? '',
-    'image': item['image']?.toString(),
-    'location': item['location']?.toString() ?? '',
-    'specs': item['specs']?.toString() ?? '',
-    'status': item['status']?.toString() ?? 'available',
-    'tags': jsonEncode(item['tags'] ?? const []),
-    'created': item['created']?.toString() ?? '',
-    'updated': item['updated']?.toString() ?? '',
-  };
 
   static String _namespaceValue(Object? value) => value is ComponentNamespace
       ? value.keyName
