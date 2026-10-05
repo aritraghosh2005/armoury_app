@@ -13,30 +13,8 @@ class ComponentDao {
   const ComponentDao(this._database);
 
   Future<void> seedIfEmpty() async {
-    final db = await _database();
-    final count =
-        Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM components'),
-        ) ??
-        0;
-    if (count != 0) return;
-    try {
-      final source = await rootBundle.loadString('assets/data/armory.json');
-      final data = jsonDecode(source) as Map<String, dynamic>;
-      final rows = data['components'] as List<dynamic>? ?? const [];
-      final batch = db.batch();
-      for (final value in rows) {
-        final item = value as Map<String, dynamic>;
-        batch.insert(
-          'components',
-          _fromJson(item),
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
-      }
-      await batch.commit(noResult: true);
-    } catch (_) {
-      // Keep the local repository usable when seed assets are unavailable.
-    }
+    // Clean initial deployment: repository starts with 0 components.
+    // Users create their own entries or restore from a .zip backup archive.
   }
 
   Future<List<Component>> getAll() async {
