@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "siteName": "O R C U S · A R M O U R Y",
+    "tagline": "terminal component inventory system · pure monospace",
+    "footer": "realtime JSON persistence · terminal HUD interface · pure vanilla CSS",
+    "version": "armoury-v1.0"
+  },
+  "nav": {
+    "home": {
+      "label": "ARMOURY (HOME)",
+      "path": "/"
+    },
+    "crate": {
+      "label": "CRATE",
+      "icon": "[▣]",
+      "path": "/crate",
+      "desc": "Bulk storage & raw component manifest"
+    },
+    "toolkit": {
+      "label": "TOOLKIT",
+      "icon": "[⌧]",
+      "path": "/toolkit",
+      "desc": "Active-use instruments & bench gear"
+    },
+    "cupboard": {
+      "label": "CUPBOARD",
+      "icon": "[≡]",
+      "path": "/cupboard",
+      "desc": "Indexed shelves, sorted drawers & modules"
+    }
+  },
+  "landing": {
+    "title": "Armoury",
+    "subtitle": "Orcus Armoury Terminal Component Storage System",
+    "leadParagraph": "The Armoury is a centralized inventory repository and component workspace designed to catalog, organize, and inspect all hardware elements including electrical, mechanical, pneumatic, structural, and laboratory parts. It classifies every artifact into three primary storage spaces: Crate, Toolkit, and Cupboard.",
+    "bodyParagraph1": "The Armoury maintains a terminal-aesthetic documentation buffer where all descriptive entries, headings, technical ratings, and stock quantities are directly manageable from the interface. The system bridges raw bulk incoming deliveries with precision workbench calibration rigs and finalized sub-assemblies.",
+    "bodyParagraph2": "Each storage sector serves an operational role: Crate houses unassigned raw hardware in quantity, Toolkit contains checked-in instruments and active development gear, and Cupboard holds classified shelf inventory ready for deployment.",
+    "infobox": {
+      "Entity": "Armoury System",
+      "Type": "Hardware Archive",
+      "Spaces": "Crate · Toolkit · Cupboard",
+      "Domain": "Electrical & Mechanical",
+      "Persistence": "Local JSON / API",
+      "UI Model": "Monospace Character Buffer",
+      "Status": "● OPERATIONAL"
+    },
+    "crateSummary": "The primary receiving bay for incoming factory orders, reels of ICs, packs of fasteners, extrusion bars, and bulk passive components awaiting triage.",
+    "toolkitSummary": "The active bench repository holding multimeters, soldering irons, precision calipers, diagnostic scopes, and currently checked-out workshop gear.",
+    "cupboardSummary": "The permanent categorized shelf matrix holding verified modules, calibrated sensors, power distribution units, and packaged kits ready for project integration."
+  },
+  "crateArticle": {
+    "title": "Crate",
+    "subtitle": "Orcus Armoury ─ Bulk Storage Sector",
+    "lead": "A Crate represents bulk, unassigned, or raw stock inventory. Items here typically have higher stock quantities, standard factory packaging, and are staged prior to being drawn into active projects or organized into designated cupboard shelving.",
+    "infobox": {
+      "Sector": "Crate [▣]",
+      "Function": "Bulk / Raw Storage",
+      "Intake": "Vendor Manifests",
+      "Access": "Free Draw / Triage",
+      "Packaging": "Reels / Tubes / Bins"
+    }
+  },
+  "toolkitArticle": {
+    "title": "Toolkit",
+    "subtitle": "Orcus Armoury ─ Workbench Instruments Sector",
+    "lead": "A Toolkit is the active workshop equipment registry. Unlike consumable or bulk stock, items within the toolkit represent tools, measurement devices, calibration jigs, and temporary test assemblies that circulate between the workbench and test bays.",
+    "infobox": {
+      "Sector": "Toolkit [⌧]",
+      "Function": "Active Gear & Metrology",
+      "Checkout": "State-Tracked",
+      "Location": "Bench 01 / Rack Left",
+      "Condition": "Calibrated / Ready"
+    }
+  },
+  "cupboardArticle": {
+    "title": "Cupboard",
+    "subtitle": "Orcus Armoury ─ Indexed Inventory Sector",
+    "lead": "The Cupboard is the verified, catalogued shelving matrix. Components residing in the cupboard are sorted by domain and drawer coordinates, fully characterized with pinouts and tolerances, and reserved for production assemblies.",
+    "infobox": {
+      "Sector": "Cupboard [≡]",
+      "Function": "Indexed Shelves & Kits",
+      "Sorting": "Coordinate Bins",
+      "Verification": "100% Tested / QA",
+      "Readiness": "Production Grade"
+    }
+  }
+}
