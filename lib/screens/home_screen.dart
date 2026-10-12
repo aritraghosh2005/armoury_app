@@ -7,7 +7,6 @@ import '../providers/theme_provider.dart';
 import '../providers/viewmodels/armoury_viewmodel.dart';
 import '../providers/viewmodels/search_viewmodel.dart';
 import '../widgets/item_detail_sheet.dart';
-import '../widgets/media_picker_sheet.dart';
 import '../widgets/new_component_sheet.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -39,7 +38,9 @@ class HomeScreen extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.dividerLine)),
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.dividerLine),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -102,13 +103,12 @@ class HomeScreen extends ConsumerWidget {
       component: item,
       onUpdate: (updated) => vm.updateComponent(item.id, updated.toJson()),
       onDelete: vm.delete,
-      onOpenUpload: (component) =>
-          MediaPickerSheet.show(context, component: component),
       onEdit: (component) => NewComponentSheet.showEdit(
         context,
         component: component,
         onUpdate: (updated) =>
             vm.updateComponent(component.id, updated.toJson()),
+        onDelete: vm.delete,
       ),
     );
   }
@@ -131,7 +131,9 @@ class _InventoryRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       splashColor: isLight ? const Color(0x12000000) : const Color(0x20FFFFFF),
-      highlightColor: isLight ? const Color(0x0A000000) : const Color(0x10FFFFFF),
+      highlightColor: isLight
+          ? const Color(0x0A000000)
+          : const Color(0x10FFFFFF),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(

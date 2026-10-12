@@ -1,10 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../core/theme.dart';
 import '../models/component.dart';
@@ -12,18 +8,20 @@ import '../providers/theme_provider.dart';
 import '../providers/tutorial_provider.dart';
 import '../providers/viewmodels/armoury_viewmodel.dart';
 import '../providers/viewmodels/search_viewmodel.dart';
+import '../providers/viewmodels/archive_viewmodel.dart';
+import '../providers/viewmodels/admin_viewmodel.dart';
+import '../providers/viewmodels/auth_viewmodel.dart';
+import '../widgets/app_shell_header.dart';
+import '../widgets/app_shell_search_overlay.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/double_tap_search_scope.dart';
-import '../widgets/initial_backup_dialog.dart';
-import '../widgets/morphing_header.dart';
 import '../widgets/new_component_sheet.dart';
 import '../widgets/optical_glass_slab.dart';
 import '../widgets/orcus_wallpaper.dart';
+import '../widgets/kept_alive_page.dart';
 import '../widgets/pixel_theme_transition.dart';
 import '../widgets/settings_glass_pane.dart';
 import '../widgets/tactical_settings_button.dart';
-import '../widgets/terminal_button.dart';
-import '../widgets/top_search_bar.dart';
 import '../widgets/tutorial_overlay.dart';
 import 'home_screen.dart';
 import 'space_screen.dart';
@@ -46,6 +44,8 @@ class _AppShellState extends ConsumerState<AppShell>
   late final AnimationController _settingsAnimController;
   late final CurvedAnimation _curvedSettingsAnim;
   bool _isSettingsOpen = false;
+  bool _isArchiveOpen = false;
+  bool _isAdminOpen = false;
 
   @override
   void initState() {
@@ -60,14 +60,17 @@ class _AppShellState extends ConsumerState<AppShell>
       curve: Curves.easeInOutCubic,
       reverseCurve: Curves.easeInOutCubic,
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkInitialBackupPrompt();
-    });
   }
 
   void _toggleSettings() {
     HapticFeedback.lightImpact();
+    if (_isArchiveOpen || _isAdminOpen) {
+      setState(() {
+        _isArchiveOpen = false;
+        _isAdminOpen = false;
+      });
+      return;
+    }
     if (_isSettingsOpen || _settingsAnimController.value > 0) {
       _closeSettings();
     } else {
@@ -80,39 +83,20 @@ class _AppShellState extends ConsumerState<AppShell>
     if (ref.read(searchViewModelProvider).isVisible) {
       ref.read(searchViewModelProvider.notifier).setVisible(false);
     }
-    setState(() => _isSettingsOpen = true);
+    setState(() {
+      _isSettingsOpen = true;
+      _isArchiveOpen = false;
+      _isAdminOpen = false;
+    });
     _settingsAnimController.forward();
   }
 
   void _closeSettings() {
+    _isArchiveOpen = false;
+    _isAdminOpen = false;
     _settingsAnimController.reverse().then((_) {
       if (mounted) setState(() => _isSettingsOpen = false);
     });
-  }
-
-  Future<void> _checkInitialBackupPrompt() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/app_settings.json');
-      var prompted = false;
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        final data = jsonDecode(content) as Map<String, dynamic>;
-        prompted = data['hasPromptedInitialBackup'] as bool? ?? false;
-      }
-      if (!prompted && mounted) {
-        Map<String, dynamic> data = {};
-        if (await file.exists()) {
-          data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-        }
-        data['hasPromptedInitialBackup'] = true;
-        await file.writeAsString(jsonEncode(data));
-
-        if (mounted) {
-          InitialBackupDialog.show(context);
-        }
-      }
-    } catch (_) {}
   }
 
   @override
@@ -143,6 +127,7 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   void _onAddPressed() {
+    if (!ref.read(authViewModelProvider).canEdit) return;
     final vm = ref.read(armouryViewModelProvider.notifier);
     final ns = _currentIndex == 1
         ? ComponentNamespace.crate
@@ -162,22 +147,22 @@ class _AppShellState extends ConsumerState<AppShell>
     final isLight = ref.watch(themeProvider);
     switch (tab) {
       case 0:
-        return _KeptAlive(
+        return KeptAlivePage(
           key: ValueKey('home_$isLight'),
           child: const HomeScreen(),
         );
       case 1:
-        return _KeptAlive(
+        return KeptAlivePage(
           key: ValueKey('crate_$isLight'),
           child: const SpaceScreen(namespace: ComponentNamespace.crate),
         );
       case 2:
-        return _KeptAlive(
+        return KeptAlivePage(
           key: ValueKey('toolkit_$isLight'),
           child: const SpaceScreen(namespace: ComponentNamespace.toolkit),
         );
       case 3:
-        return _KeptAlive(
+        return KeptAlivePage(
           key: ValueKey('cupboard_$isLight'),
           child: const SpaceScreen(namespace: ComponentNamespace.cupboard),
         );
@@ -280,7 +265,7 @@ class _AppShellState extends ConsumerState<AppShell>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      _AppShellHeader(
+                                      AppShellHeader(
                                         currentIndex: _currentIndex,
                                         isSettingsOpen: _isSettingsOpen,
                                         settingsAnimation: _curvedSettingsAnim,
@@ -367,23 +352,49 @@ class _AppShellState extends ConsumerState<AppShell>
                           (1.0 - progress) * (configWidth + kMargin + 16),
                           0,
                         ),
-                        child: SettingsGlassPane(),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {},
+                          child: SettingsGlassPane(
+                            isArchiveOpen: _isArchiveOpen,
+                            isAdminOpen: _isAdminOpen,
+                            onOpenArchive: () {
+                              ref.invalidate(archiveItemsProvider);
+                              setState(() {
+                                _isArchiveOpen = true;
+                                _isAdminOpen = false;
+                              });
+                            },
+                            onCloseArchive: () =>
+                                setState(() => _isArchiveOpen = false),
+                            onOpenAdmin: () {
+                              ref.invalidate(adminUsersProvider);
+                              ref.invalidate(adminAuditProvider);
+                              setState(() {
+                                _isAdminOpen = true;
+                                _isArchiveOpen = false;
+                              });
+                            },
+                            onCloseAdmin: () =>
+                                setState(() => _isAdminOpen = false),
+                          ),
+                        ),
                       ),
                     ),
 
-                  // One control travels from the header to the shared pane divider.
+                  // The control travels from the main screen's right edge to
+                  // the left edge as the main slab moves aside.
                   Positioned(
-                    left:
-                        (screenWidth - kMargin - 14 - 30) * (1 - progress) +
-                        (kMargin + mainVisibleWidth + (kGap - (30.0 + 22.0 * progress)) / 2) *
-                            progress,
+                    left: Tween<double>(
+                      begin: screenWidth - kMargin - 68,
+                      end: kMargin,
+                    ).transform(progress),
                     top: topInset + 16,
                     child: SizedBox(
-                      width: 30.0 + 22.0 * progress,
+                      width: 68,
                       height: 30,
-                      child: TacticalSettingsMorphButton(
-                        isConfigOpen: progress >= 0.5,
-                        rotationAnimation: _curvedSettingsAnim,
+                      child: TacticalSettingsButton(
+                        progress: progress,
                         onPressed: _toggleSettings,
                       ),
                     ),
@@ -391,7 +402,7 @@ class _AppShellState extends ConsumerState<AppShell>
 
                   // 4. Top Search Bar Overlay (strictly inactive when config is active)
                   if (progress == 0.0 && !_isSettingsOpen)
-                    const _SearchOverlay(),
+                    const AppShellSearchOverlay(),
 
                   // 5. Fixed Bottom Navigation Bar
                   Positioned(
@@ -416,191 +427,5 @@ class _AppShellState extends ConsumerState<AppShell>
         ),
       ),
     );
-  }
-}
-
-class _AppShellHeader extends ConsumerWidget {
-  final int currentIndex;
-  final bool isSettingsOpen;
-  final Animation<double> settingsAnimation;
-  final VoidCallback onSearchPressed;
-  final VoidCallback onAddPressed;
-
-  const _AppShellHeader({
-    required this.currentIndex,
-    required this.isSettingsOpen,
-    required this.settingsAnimation,
-    required this.onSearchPressed,
-    required this.onAddPressed,
-  });
-
-  String _getTitle(int index) {
-    switch (index) {
-      case 1:
-        return 'crate';
-      case 2:
-        return 'toolkit';
-      case 3:
-        return 'cupboard';
-      case 0:
-      default:
-        return 'armoury';
-    }
-  }
-
-  String _getLeftText(int index, WidgetRef ref) {
-    switch (index) {
-      case 1:
-        final count = ref
-            .watch(filteredComponentsProvider(ComponentNamespace.crate))
-            .length;
-        return '$count ITEMS';
-      case 2:
-        final count = ref
-            .watch(filteredComponentsProvider(ComponentNamespace.toolkit))
-            .length;
-        return '$count ITEMS';
-      case 3:
-        final count = ref
-            .watch(filteredComponentsProvider(ComponentNamespace.cupboard))
-            .length;
-        return '$count ITEMS';
-      case 0:
-      default:
-        return 'TEAM ORCUS';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final search = ref.watch(
-      searchViewModelProvider.select((s) => s.isVisible),
-    );
-    final title = _getTitle(currentIndex);
-    final leftText = _getLeftText(currentIndex, ref);
-    final isSettingsActive = isSettingsOpen || settingsAnimation.value > 0;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border(bottom: BorderSide(color: AppColors.dividerLine)),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. Header row reserves space for the traveling settings control.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: isSettingsActive ? null : onSearchPressed,
-                  child: MorphingAsciiHeader(title: title),
-                ),
-              ),
-              const SizedBox(width: 38),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // 2. Action row with title area (double-tap toggles search) and constant search + add buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: isSettingsActive ? null : onSearchPressed,
-                  child: MorphingText(
-                    text: leftText,
-                    style: AppTypography.heading(color: AppColors.fg),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TerminalButton(
-                    label: search ? 'SEARCHING' : 'SEARCH_',
-                    compact: true,
-                    onPressed: isSettingsActive ? null : onSearchPressed,
-                    onDoubleTap: isSettingsActive ? null : onSearchPressed,
-                  ),
-                  const SizedBox(width: 6),
-                  TerminalButton(
-                    label: '+ ADD',
-                    compact: true,
-                    variant: TerminalButtonVariant.primary,
-                    onPressed: onAddPressed,
-                    onDoubleTap: isSettingsActive ? null : onSearchPressed,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchOverlay extends ConsumerWidget {
-  const _SearchOverlay();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isVisible = ref.watch(
-      searchViewModelProvider.select((state) => state.isVisible),
-    );
-    final query = ref.watch(
-      searchViewModelProvider.select((state) => state.query),
-    );
-    final domain = ref.watch(
-      searchViewModelProvider.select((state) => state.domain),
-    );
-
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: TopSearchBar(
-        visible: isVisible,
-        query: query,
-        onQueryChanged: (q) {
-          ref.read(searchViewModelProvider.notifier).setQuery(q);
-        },
-        selectedDomain: domain,
-        onDomainChanged: (d) {
-          ref.read(searchViewModelProvider.notifier).setDomain(d);
-        },
-        onClose: () {
-          ref.read(searchViewModelProvider.notifier).setVisible(false);
-        },
-      ),
-    );
-  }
-}
-
-class _KeptAlive extends ConsumerStatefulWidget {
-  final Widget child;
-
-  const _KeptAlive({super.key, required this.child});
-
-  @override
-  ConsumerState<_KeptAlive> createState() => _KeptAliveState();
-}
-
-class _KeptAliveState extends ConsumerState<_KeptAlive>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    ref.watch(themeProvider);
-    return widget.child;
   }
 }

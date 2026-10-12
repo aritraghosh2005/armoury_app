@@ -1,120 +1,78 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import 'terminal_button.dart';
 
-/// Innovative tactile cyber-morphing settings/home button.
-///
-/// Features a mechanical gear dial that rotates 180 degrees during transition,
-/// morphing between a tactical gear wheel and a precision home aperture reticle
-/// with interactive specular highlights and cyber-brackets.
-class TacticalSettingsMorphButton extends StatefulWidget {
-  final bool isConfigOpen;
-  final Animation<double>? rotationAnimation;
+/// The main-screen settings control morphs into the Config escape control.
+class TacticalSettingsButton extends StatefulWidget {
   final VoidCallback onPressed;
+  final double progress;
 
-  const TacticalSettingsMorphButton({
+  const TacticalSettingsButton({
     super.key,
-    required this.isConfigOpen,
-    this.rotationAnimation,
     required this.onPressed,
+    required this.progress,
   });
 
   @override
-  State<TacticalSettingsMorphButton> createState() =>
-      _TacticalSettingsMorphButtonState();
+  State<TacticalSettingsButton> createState() => _TacticalSettingsButtonState();
 }
 
-class _TacticalSettingsMorphButtonState
-    extends State<TacticalSettingsMorphButton> {
+class _TacticalSettingsButtonState extends State<TacticalSettingsButton> {
   bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     final isLight = AppColors.isLight;
+    final showEscape = widget.progress >= 0.55;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onPressed,
-      child: AnimatedBuilder(
-        animation: widget.rotationAnimation ?? const AlwaysStoppedAnimation(0.0),
-        builder: (context, _) {
-          final progress =
-              widget.rotationAnimation?.value ?? (widget.isConfigOpen ? 1.0 : 0.0);
-          final angle = progress * math.pi;
-
-          Color bg;
-          Color border;
-          Color fg;
-
-          if (widget.isConfigOpen) {
-            bg = _isPressed
-                ? (isLight ? const Color(0xFFE2E8F0) : const Color(0x33FFFFFF))
-                : (isLight ? const Color(0xFFFFFFFF) : const Color(0xFF000000));
-            border = isLight ? const Color(0xFF0F172A) : const Color(0xFFFFFFFF);
-            fg = isLight ? const Color(0xFF0F172A) : const Color(0xFFFFFFFF);
-          } else {
-            bg = _isPressed
-                ? (isLight ? const Color(0xFFE2E8F0) : const Color(0x33FFFFFF))
-                : (isLight ? const Color(0x90FFFFFF) : const Color(0x90000000));
-            border = isLight ? const Color(0xFFCBD5E1) : AppColors.borderSubtle;
-            fg = AppColors.fg;
-          }
-
-          return Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: bg,
-              border: Border.all(
-                color: border,
-                width: 1,
-              ),
-              borderRadius: BorderRadius.zero,
-            ),
-            child: ClipRect(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Transform.rotate(
-                    angle: angle,
-                    child: Icon(
-                      widget.isConfigOpen
-                          ? Icons.home_outlined
-                          : Icons.settings_outlined,
-                      size: 15,
-                      color: fg,
+    return Align(
+      alignment: showEscape ? Alignment.centerLeft : Alignment.centerRight,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 140),
+        child: showEscape
+            ? TerminalButton(
+                key: const ValueKey('escape-settings'),
+                label: 'ESC',
+                icon: Icon(
+                  Icons.cancel_outlined,
+                  size: 16,
+                  color: AppColors.fg,
+                ),
+                compact: true,
+                onPressed: widget.onPressed,
+              )
+            : GestureDetector(
+                key: const ValueKey('main-settings'),
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (_) => setState(() => _isPressed = true),
+                onTapUp: (_) => setState(() => _isPressed = false),
+                onTapCancel: () => setState(() => _isPressed = false),
+                onTap: widget.onPressed,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: _isPressed
+                        ? (isLight
+                              ? const Color(0xFFE2E8F0)
+                              : const Color(0x33FFFFFF))
+                        : (isLight
+                              ? const Color(0x90FFFFFF)
+                              : const Color(0x90000000)),
+                    border: Border.all(
+                      color: isLight
+                          ? const Color(0xFFCBD5E1)
+                          : AppColors.borderSubtle,
                     ),
                   ),
-                  if (widget.isConfigOpen) ...[
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Opacity(
-                        opacity: ((progress - 0.5) / 0.5).clamp(0.0, 1.0),
-                        child: Text(
-                          'ESC',
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.clip,
-                          style: AppTypography.mono(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: fg,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+                  child: Icon(
+                    Icons.settings_outlined,
+                    size: 15,
+                    color: AppColors.fg,
+                  ),
+                ),
               ),
-            ),
-          );
-        },
       ),
     );
   }

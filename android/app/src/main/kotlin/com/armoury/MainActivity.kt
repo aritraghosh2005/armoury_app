@@ -1,4 +1,4 @@
-package com.orcus.armoury_flutter
+package com.armoury
 
 import android.content.ContentValues
 import android.media.MediaScannerConnection

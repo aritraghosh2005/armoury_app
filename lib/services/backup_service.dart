@@ -1,98 +1,159 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:archive/archive.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
+
 import '../core/database/database_provider.dart';
+import '../core/sync/backend_api.dart';
+import '../core/database/component_dao.dart';
+import 'backup_models.dart';
+import 'inventory_package_codec.dart';
 
-class DetectedBackup {
-  final File file;
-  final String fileName;
-  final int sizeBytes;
-  final DateTime modified;
-
-  const DetectedBackup({
-    required this.file,
-    required this.fileName,
-    required this.sizeBytes,
-    required this.modified,
-  });
-
-  String get sizeFormatted {
-    if (sizeBytes < 1024) return '$sizeBytes B';
-    if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
-    return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-}
-
-class BackupExportResult {
-  final bool success;
-  final bool cancelled;
-  final String? savedPath;
-  final int fileSize;
-  final int componentCount;
-  final String? error;
-
-  const BackupExportResult({
-    required this.success,
-    this.cancelled = false,
-    this.savedPath,
-    this.fileSize = 0,
-    this.componentCount = 0,
-    this.error,
-  });
-
-  String get sizeFormatted {
-    if (fileSize < 1024) return '$fileSize B';
-    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
-    return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
-  factory BackupExportResult.cancelled() => const BackupExportResult(
-        success: false,
-        cancelled: true,
-      );
-
-  factory BackupExportResult.failure(String error) => BackupExportResult(
-        success: false,
-        error: error,
-      );
-}
-
-class BackupImportResult {
-  final bool success;
-  final bool cancelled;
-  final int restoredCount;
-  final String? fileName;
-  final String? error;
-
-  const BackupImportResult({
-    required this.success,
-    this.cancelled = false,
-    this.restoredCount = 0,
-    this.fileName,
-    this.error,
-  });
-
-  factory BackupImportResult.cancelled() => const BackupImportResult(
-        success: false,
-        cancelled: true,
-      );
-
-  factory BackupImportResult.failure(String error) => BackupImportResult(
-        success: false,
-        error: error,
-      );
-}
+export 'backup_models.dart';
+export 'inventory_package_codec.dart';
 
 class BackupService {
   final DatabaseProvider _databaseProvider;
+  final Dio _dio;
+  final BackendApi? backendApi;
 
-  BackupService(this._databaseProvider);
+  BackupService(this._databaseProvider, {Dio? dio, this.backendApi})
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 20),
+            ),
+          );
+
+  Future<BackupExportResult> exportInventoryPackageWithPicker() async {
+    try {
+      final db = await _databaseProvider.database;
+      final rows = await db.query('components', orderBy: 'name COLLATE NOCASE');
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory(p.join(appDir.path, 'component_images'));
+      final imagesById = <String, InventoryImageFile>{};
+      for (final row in rows) {
+        final image = row['image']?.toString().trim();
+        final id = row['id']?.toString();
+        if (id == null || image == null || image.isEmpty || image == 'none') {
+          continue;
+        }
+        imagesById[id] = await _readInventoryImage(image, imagesDir);
+      }
+      final bytes = Uint8List.fromList(
+        inventoryPackageZipBytes(rows, imagesById),
+      );
+      final name =
+          'armoury_inventory_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.zip';
+      final saved = await FilePicker.saveFile(
+        dialogTitle: 'Download inventory list and photos (ZIP)',
+        fileName: name,
+        bytes: bytes,
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+        mimeType: 'application/zip',
+      );
+      if (saved == null) return BackupExportResult.cancelled();
+      final path = saved.isScheme('file')
+          ? saved.toFilePath()
+          : (saved.path.isNotEmpty ? saved.path : name);
+      return BackupExportResult(
+        success: true,
+        savedPath: path,
+        fileSize: bytes.length,
+        componentCount: rows.length,
+        imageCount: imagesById.length,
+      );
+    } catch (e) {
+      return BackupExportResult.failure(e.toString());
+    }
+  }
+
+  Future<InventoryImageFile> _readInventoryImage(
+    String reference,
+    Directory imagesDir,
+  ) async {
+    final local = File(reference);
+    if (await local.exists()) {
+      final bytes = await local.readAsBytes();
+      return InventoryImageFile(
+        extension: _imageExtension(reference),
+        bytes: Uint8List.fromList(bytes),
+      );
+    }
+
+    final uri = Uri.tryParse(reference);
+    if (uri != null && uri.scheme == 'file') {
+      final file = File.fromUri(uri);
+      if (await file.exists()) {
+        return InventoryImageFile(
+          extension: _imageExtension(file.path),
+          bytes: Uint8List.fromList(await file.readAsBytes()),
+        );
+      }
+    }
+
+    Uri? remoteUri;
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      remoteUri = uri;
+    } else if (uri?.scheme == 'storage') {
+      remoteUri = uri;
+    } else if (reference.startsWith('/v1/media/') &&
+        BackendApi.configuredBaseUrl.isNotEmpty) {
+      remoteUri = Uri.parse(BackendApi.configuredBaseUrl).resolve(reference);
+    }
+    if (remoteUri != null) {
+      final bytes = uri?.scheme == 'storage'
+          ? backendApi == null
+                ? throw StateError('Supabase storage is not configured')
+                : await backendApi!.downloadImage(remoteUri)
+          : (await _dio.get<List<int>>(
+              remoteUri.toString(),
+              options: Options(responseType: ResponseType.bytes),
+            )).data;
+      if (bytes == null || bytes.isEmpty) {
+        throw FileSystemException(
+          'Could not download an inventory photo',
+          reference,
+        );
+      }
+      return InventoryImageFile(
+        extension: _imageExtension(remoteUri.path),
+        bytes: Uint8List.fromList(bytes),
+      );
+    }
+
+    // Also check the app media directory for legacy basename-only image references.
+    final fallback = File(p.join(imagesDir.path, p.basename(reference)));
+    if (await fallback.exists()) {
+      return InventoryImageFile(
+        extension: _imageExtension(fallback.path),
+        bytes: Uint8List.fromList(await fallback.readAsBytes()),
+      );
+    }
+    throw FileSystemException(
+      'An inventory photo could not be found',
+      reference,
+    );
+  }
+
+  String _imageExtension(String path) {
+    final extension = p
+        .extension(Uri.tryParse(path)?.path ?? path)
+        .toLowerCase();
+    return const {'.jpg', '.jpeg', '.png', '.webp'}.contains(extension)
+        ? extension.substring(1)
+        : 'jpg';
+  }
 
   /// Scans common storage directories (Downloads, Documents, App Storage)
   /// for any existing `.zip` backup files.
@@ -205,7 +266,9 @@ class BackupService {
                 ArchiveFile('images/$fileName', imgBytes.length, imgBytes),
               );
             } catch (e) {
-              debugPrint('[BackupService] Could not read image ${entity.path}: $e');
+              debugPrint(
+                '[BackupService] Could not read image ${entity.path}: $e',
+              );
             }
           }
         }
@@ -266,7 +329,9 @@ class BackupService {
           displayPath = savedUri.path;
         }
       } else {
-        displayPath = savedUri.path.isNotEmpty ? savedUri.path : defaultFileName;
+        displayPath = savedUri.path.isNotEmpty
+            ? savedUri.path
+            : defaultFileName;
       }
 
       return BackupExportResult(
@@ -283,7 +348,9 @@ class BackupService {
 
   /// Opens the native folder tree / file browser so the user can navigate
   /// to their intended `.zip` backup file and restore the repository.
-  Future<BackupImportResult> importBackupWithPicker({bool overwrite = true}) async {
+  Future<BackupImportResult> importBackupWithPicker({
+    bool overwrite = true,
+  }) async {
     try {
       final picked = await FilePicker.pickFile(
         type: FileType.custom,
@@ -299,10 +366,15 @@ class BackupService {
       final bytes = await picked.xFile.readAsBytes();
 
       if (bytes.isEmpty) {
-        return BackupImportResult.failure('Selected backup file is empty or unreadable.');
+        return BackupImportResult.failure(
+          'Selected backup file is empty or unreadable.',
+        );
       }
 
-      final restoredCount = await restoreBackupFromBytes(bytes, overwrite: overwrite);
+      final restoredCount = await restoreBackupFromBytes(
+        bytes,
+        overwrite: overwrite,
+      );
 
       return BackupImportResult(
         success: true,
@@ -316,7 +388,10 @@ class BackupService {
   }
 
   /// Restores components and image assets from a byte buffer of a `.zip` archive
-  Future<int> restoreBackupFromBytes(List<int> bytes, {bool overwrite = true}) async {
+  Future<int> restoreBackupFromBytes(
+    List<int> bytes, {
+    bool overwrite = true,
+  }) async {
     final zipDecoder = ZipDecoder();
     final archive = zipDecoder.decodeBytes(bytes);
 
@@ -338,7 +413,9 @@ class BackupService {
     }
 
     if (manifestFile == null) {
-      throw const FormatException('Invalid backup archive: missing database manifest in zip.');
+      throw const FormatException(
+        'Invalid backup archive: missing database manifest in zip.',
+      );
     }
 
     // 1. Unpack images into component_images directory
@@ -348,12 +425,14 @@ class BackupService {
       await targetImagesDir.create(recursive: true);
     }
 
+    final restoredImagePaths = <String, String>{};
     for (final img in imageFiles) {
       try {
         final cleanName = p.basename(img.name);
         final content = img.content as List<int>;
         final targetImgFile = File(p.join(targetImagesDir.path, cleanName));
         await targetImgFile.writeAsBytes(content);
+        restoredImagePaths[cleanName] = targetImgFile.path;
       } catch (e) {
         debugPrint('[BackupService] Failed writing image ${img.name}: $e');
       }
@@ -364,13 +443,25 @@ class BackupService {
     final jsonStr = utf8.decode(manifestBytes);
     final data = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-    final components = (data['components'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-    final appContent = (data['app_content'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final components = (data['components'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final appContent = (data['app_content'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    for (final row in components) {
+      final image = row['image']?.toString();
+      if (image == null || image.isEmpty || image == 'none') continue;
+      final uri = Uri.tryParse(image);
+      if (uri != null && uri.hasScheme) continue;
+      final archiveName = p.basename(image.replaceAll('\\', '/'));
+      final restoredPath = restoredImagePaths[archiveName];
+      if (restoredPath != null) row['image'] = restoredPath;
+    }
 
     final db = await _databaseProvider.database;
     var restoredCount = 0;
 
     await db.transaction((txn) async {
+      final previousRows = await txn.query('components', columns: ['id']);
       if (overwrite) {
         await txn.delete('components');
         await txn.delete('app_content');
@@ -392,13 +483,22 @@ class BackupService {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
+      await ComponentDao.enqueueRestoredState(
+        txn,
+        previousRows: previousRows,
+        restoredRows: components,
+        overwrite: overwrite,
+      );
     });
 
     return restoredCount;
   }
 
   /// Restores components and image assets from a standard `.zip` backup file
-  Future<int> restoreBackupFromZip(File zipFile, {bool overwrite = false}) async {
+  Future<int> restoreBackupFromZip(
+    File zipFile, {
+    bool overwrite = false,
+  }) async {
     final bytes = await zipFile.readAsBytes();
     return restoreBackupFromBytes(bytes, overwrite: overwrite);
   }

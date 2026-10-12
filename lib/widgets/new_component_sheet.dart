@@ -1,14 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../core/sync/operation_id.dart';
 import '../models/component.dart';
 import '../providers/theme_provider.dart';
 import '../providers/viewmodels/media_viewmodel.dart';
 import 'component_image_view.dart';
-import 'status_badge.dart';
 import 'terminal_button.dart';
 
 class NewComponentSheet extends ConsumerStatefulWidget {
@@ -16,6 +14,7 @@ class NewComponentSheet extends ConsumerStatefulWidget {
   final Component? initialComponent;
   final Future<void> Function(Map<String, dynamic> data)? onRegister;
   final Future<void> Function(Component updated)? onUpdate;
+  final Future<void> Function(String id)? onDelete;
 
   const NewComponentSheet({
     super.key,
@@ -23,6 +22,7 @@ class NewComponentSheet extends ConsumerStatefulWidget {
     this.initialComponent,
     this.onRegister,
     this.onUpdate,
+    this.onDelete,
   });
 
   static Future<void> show(
@@ -47,6 +47,7 @@ class NewComponentSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     required Component component,
     required Future<void> Function(Component updated) onUpdate,
+    Future<void> Function(String id)? onDelete,
   }) {
     final isLight = AppColors.isLight;
     return showModalBottomSheet(
@@ -58,6 +59,7 @@ class NewComponentSheet extends ConsumerStatefulWidget {
         defaultNamespace: component.namespace,
         initialComponent: component,
         onUpdate: onUpdate,
+        onDelete: onDelete,
       ),
     );
   }
@@ -83,6 +85,9 @@ class _NewComponentSheetState extends ConsumerState<NewComponentSheet> {
   final List<String> _categories = ['Mechanical', 'Electrical', 'Others'];
 
   bool get isEditing => widget.initialComponent != null;
+
+  String _timestampLabel(String value) =>
+      DateTime.tryParse(value)?.toLocal().toString().replaceFirst('T', ' ') ?? value;
 
   @override
   void initState() {
@@ -224,7 +229,7 @@ class _NewComponentSheetState extends ConsumerState<NewComponentSheet> {
           await widget.onUpdate!(updated);
         }
       } else {
-        final generatedId = 'COMP-${1000 + Random().nextInt(9000)}';
+        final generatedId = newOperationId();
         final data = {
           'id': generatedId,
           'namespace': _namespace.keyName,
@@ -403,6 +408,13 @@ class _NewComponentSheetState extends ConsumerState<NewComponentSheet> {
                   ),
                 ],
               ),
+              if (isEditing) ...[
+                const SizedBox(height: 5),
+                Text(
+                  'CREATED ${_timestampLabel(widget.initialComponent!.created)}  ·  UPDATED ${_timestampLabel(widget.initialComponent!.updated)}',
+                  style: AppTypography.caption(color: AppColors.dim),
+                ),
+              ],
               const SizedBox(height: 12),
 
               Expanded(
@@ -663,6 +675,33 @@ class _NewComponentSheetState extends ConsumerState<NewComponentSheet> {
               // Footer Action Buttons
               Row(
                 children: [
+                  if (isEditing && widget.onDelete != null) ...[
+                    TerminalButton(
+                      label: 'ARCHIVE',
+                      compact: true,
+                      variant: TerminalButtonVariant.danger,
+                      onPressed: _isLoading ? null : () async {
+                        final navigator = Navigator.of(context);
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: AppColors.bg,
+                            title: Text('MOVE TO ARCHIVE?', style: AppTypography.heading(color: AppColors.fg)),
+                            content: Text('This component can be restored for one week.', style: AppTypography.body(color: AppColors.dim)),
+                            actions: [
+                              TerminalButton(label: 'CANCEL', compact: true, onPressed: () => Navigator.pop(ctx, false)),
+                              TerminalButton(label: 'ARCHIVE', compact: true, variant: TerminalButtonVariant.danger, onPressed: () => Navigator.pop(ctx, true)),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && mounted) {
+                          await widget.onDelete!(widget.initialComponent!.id);
+                          if (mounted) navigator.pop();
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   Expanded(
                     child: TerminalButton(
                       label: 'CANCEL',
@@ -691,4 +730,3 @@ class _NewComponentSheetState extends ConsumerState<NewComponentSheet> {
       );
   }
 }
-

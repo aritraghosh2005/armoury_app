@@ -1,0 +1,6 @@
+services:
+  api:
+    environment:
+      APP_ENV: testing
+      ARMOURY_TEST_AUTH_BYPASS: "1"
+      ARMOURY_BOOTSTRAP_ADMIN_EMAIL: integration@example.invalid

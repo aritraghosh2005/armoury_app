@@ -7,7 +7,6 @@ import '../providers/theme_provider.dart';
 import '../providers/viewmodels/armoury_viewmodel.dart';
 import '../providers/viewmodels/search_viewmodel.dart';
 import '../widgets/component_card.dart';
-import '../widgets/media_picker_sheet.dart';
 import '../widgets/new_component_sheet.dart';
 
 class SpaceScreen extends ConsumerWidget {
@@ -54,13 +53,12 @@ class SpaceScreen extends ConsumerWidget {
                     'namespace': updated.namespace.keyName,
                   }),
                   onDelete: vm.delete,
-                  onOpenUpload: (component) =>
-                      MediaPickerSheet.show(context, component: component),
                   onEdit: (component) => NewComponentSheet.showEdit(
                     context,
                     component: component,
                     onUpdate: (updated) =>
                         vm.updateComponent(component.id, updated.toJson()),
+                    onDelete: vm.delete,
                   ),
                 );
               },

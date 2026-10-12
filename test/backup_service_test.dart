@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:archive/archive.dart';
 import 'package:armoury_flutter/services/backup_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,10 +21,14 @@ void main() {
 
     final archive = Archive();
     final jsonBytes = utf8.encode(jsonEncode(manifest));
-    archive.addFile(ArchiveFile('armoury_database.json', jsonBytes.length, jsonBytes));
+    archive.addFile(
+      ArchiveFile('armoury_database.json', jsonBytes.length, jsonBytes),
+    );
 
     final sampleImage = utf8.encode('fake-jpg-binary-data');
-    archive.addFile(ArchiveFile('images/test_img.jpg', sampleImage.length, sampleImage));
+    archive.addFile(
+      ArchiveFile('images/test_img.jpg', sampleImage.length, sampleImage),
+    );
 
     // Encode to ZIP bytes
     final zipEncoder = ZipEncoder();
@@ -36,14 +42,23 @@ void main() {
 
     expect(decodedArchive.length, 2);
 
-    final extractedJsonFile = decodedArchive.firstWhere((f) => f.name == 'armoury_database.json');
-    final extractedData = jsonDecode(utf8.decode(extractedJsonFile.content as List<int>)) as Map<String, dynamic>;
+    final extractedJsonFile = decodedArchive.firstWhere(
+      (f) => f.name == 'armoury_database.json',
+    );
+    final extractedData = jsonDecode(
+      utf8.decode(extractedJsonFile.content as List<int>),
+    ) as Map<String, dynamic>;
 
     expect(extractedData['app'], 'ORCUS_ARMOURY');
     expect((extractedData['components'] as List).length, 2);
 
-    final extractedImg = decodedArchive.firstWhere((f) => f.name == 'images/test_img.jpg');
-    expect(utf8.decode(extractedImg.content as List<int>), 'fake-jpg-binary-data');
+    final extractedImg = decodedArchive.firstWhere(
+      (f) => f.name == 'images/test_img.jpg',
+    );
+    expect(
+      utf8.decode(extractedImg.content as List<int>),
+      'fake-jpg-binary-data',
+    );
   });
 
   test('BackupExportResult and BackupImportResult model integrity', () {
@@ -83,5 +98,64 @@ void main() {
     final failedImport = BackupImportResult.failure('Corrupt ZIP');
     expect(failedImport.success, false);
     expect(failedImport.error, 'Corrupt ZIP');
+  });
+
+  test('inventory CSV exports dates and quotes data without exposing IDs', () {
+    final csv = inventoryRowsAsCsv([
+      {
+        'id': 'internal-id',
+        'name': 'Motor, "A"',
+        'namespace': 'crate',
+        'qty': 2,
+        'tags': '["spare", "drive"]',
+        'created': '2026-10-09T08:00:00Z',
+        'updated': '2026-10-09T09:15:00Z',
+      },
+    ]);
+    expect(csv, contains('"name"'));
+    expect(csv, contains('"created"'));
+    expect(csv, contains('"updated"'));
+    expect(csv, contains('"Motor, ""A"""'));
+    expect(csv, contains('"spare; drive"'));
+    expect(csv, isNot(contains('internal-id')));
+    expect(csv, contains('2026-10-09T09:15:00Z'));
+  });
+
+  test('download package contains CSV photo references and image bytes', () {
+    final bytes = inventoryPackageZipBytes(
+      [
+        {
+          'id': 'private-component-id',
+          'name': 'Motor controller',
+          'namespace': 'crate',
+          'qty': 1,
+          'created': '2026-10-09T08:00:00Z',
+          'updated': '2026-10-09T09:15:00Z',
+        },
+      ],
+      {
+        'private-component-id': InventoryImageFile(
+          extension: 'jpg',
+          bytes: Uint8List.fromList([0xFF, 0xD8, 0x01]),
+        ),
+      },
+    );
+
+    final files = ZipDecoder().decodeBytes(bytes);
+    expect(
+      files.map((file) => file.name),
+      containsAll(['inventory.csv', 'images/photo_0001.jpg']),
+    );
+    final csv = utf8.decode(
+      files.firstWhere((file) => file.name == 'inventory.csv').content
+          as List<int>,
+    );
+    expect(csv, contains('"image_file"'));
+    expect(csv, contains('"images/photo_0001.jpg"'));
+    expect(csv, isNot(contains('private-component-id')));
+    expect(
+      files.firstWhere((file) => file.name == 'images/photo_0001.jpg').content,
+      [0xFF, 0xD8, 0x01],
+    );
   });
 }

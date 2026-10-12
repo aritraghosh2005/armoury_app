@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-armoury}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-armoury_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env}
+      ARMOURY_APP_USER: ${ARMOURY_APP_USER:-armoury_app}
+      ARMOURY_APP_PASSWORD: ${ARMOURY_APP_PASSWORD:?Set ARMOURY_APP_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init/01-create-app-role.sh:/docker-entrypoint-initdb.d/01-create-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-armoury}
+      PGUSER: ${ARMOURY_APP_USER:-armoury_app}
+      PGPASSWORD: ${ARMOURY_APP_PASSWORD}
+      MEDIA_DIR: /data/media
+      GOOGLE_SERVER_CLIENT_ID: ${GOOGLE_SERVER_CLIENT_ID:-}
+      ARMOURY_BOOTSTRAP_ADMIN_EMAIL: ${ARMOURY_BOOTSTRAP_ADMIN_EMAIL:-}
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build: ./backend
+    restart: "no"
+    command: ["python", "-m", "app.migrate"]
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-armoury}
+      PGUSER: ${POSTGRES_ADMIN_USER:-armoury_admin}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      MEDIA_DIR: /data/media
+      ARMOURY_BOOTSTRAP_ADMIN_EMAIL: ${ARMOURY_BOOTSTRAP_ADMIN_EMAIL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  proxy:
+    profiles: ["production"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  media_data:
+  caddy_data:
+  caddy_config:

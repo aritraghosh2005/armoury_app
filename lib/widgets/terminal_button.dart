@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
-import 'double_tap_search_scope.dart';
 
 enum TerminalButtonVariant {
   primary, // Inverted: White bg, Black text
@@ -71,7 +70,6 @@ class _TerminalButtonState extends State<TerminalButton> {
     }
 
     final hasLabel = widget.label.trim().isNotEmpty;
-    final scopedDoubleTap = DoubleTapSearchScope.maybeOf(context);
     final displayText = widget.compact ? widget.label : '[ ${widget.label} ]';
 
     return GestureDetector(
@@ -80,9 +78,7 @@ class _TerminalButtonState extends State<TerminalButton> {
       onTapUp: isEnabled ? (_) => setState(() => _isPressed = false) : null,
       onTapCancel: isEnabled ? () => setState(() => _isPressed = false) : null,
       onTap: widget.onPressed,
-      onDoubleTap: isEnabled
-          ? (widget.onDoubleTap ?? scopedDoubleTap ?? widget.onPressed)
-          : null,
+      onDoubleTap: isEnabled ? widget.onDoubleTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 80),
         padding: widget.compact

@@ -1,27 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/database/component_dao.dart';
-import '../../core/database/content_dao.dart';
-import '../../core/database/database_provider.dart';
-import '../../core/repositories/component_repository.dart';
+import '../app_providers.dart';
 import '../../core/repositories/i_component_repository.dart';
+import '../../core/sync/component_patch.dart';
 import '../../models/component.dart';
-
-final databaseProvider = Provider<DatabaseProvider>(
-  (ref) => DatabaseProvider(),
-);
-
-final componentDaoProvider = Provider<ComponentDao>(
-  (ref) => ComponentDao(() => ref.watch(databaseProvider).database),
-);
-
-final contentDaoProvider = Provider<ContentDao>(
-  (ref) => ContentDao(() => ref.watch(databaseProvider).database),
-);
-
-final componentRepositoryProvider = Provider<IComponentRepository>(
-  (ref) => ComponentRepository(ref.watch(componentDaoProvider)),
-);
 
 final armouryViewModelProvider =
     AsyncNotifierProvider<ArmouryViewModel, ArmouryState>(ArmouryViewModel.new);
@@ -38,8 +22,12 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
   IComponentRepository get _repository => ref.read(componentRepositoryProvider);
 
   @override
-  Future<ArmouryState> build() async =>
-      ArmouryState(items: await _repository.getAll());
+  Future<ArmouryState> build() async {
+    await ref.read(initialDataServiceProvider).seedIfNeeded();
+    final initial = ArmouryState(items: await _repository.getAll());
+    ref.read(syncCoordinatorProvider).start(onSynchronized: _refreshFromLocal);
+    return initial;
+  }
 
   Future<void> create(Map<String, dynamic> data) async {
     final previous = state.value;
@@ -51,6 +39,7 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
           ArmouryState(items: [created, ...current.items]),
         );
       }
+      unawaited(_syncNow());
     } catch (_) {
       if (previous != null) state = AsyncValue.data(previous);
       rethrow;
@@ -67,6 +56,8 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
     if (index < 0) return null;
 
     final original = current.items[index];
+    final patch = changedComponentFields(original, changes);
+    if (patch.isEmpty) return original;
     final optimistic = original.copyWith(
       name: changes['name']?.toString(),
       namespace: changes.containsKey('namespace')
@@ -88,8 +79,9 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
     );
     _replaceItem(id, optimistic);
     try {
-      final updated = await _repository.update(id, changes);
+      final updated = await _repository.update(id, patch);
       _replaceItem(id, updated);
+      unawaited(_syncNow());
       return updated;
     } catch (_) {
       _replaceItem(id, original);
@@ -112,6 +104,7 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
     );
     try {
       if (!await _repository.delete(id)) throw StateError('Delete failed');
+      unawaited(_syncNow());
     } catch (_) {
       final latest = state.value?.items ?? current.items;
       final restored = [...latest, removed]
@@ -129,5 +122,17 @@ class ArmouryViewModel extends AsyncNotifier<ArmouryState> {
     if (index < 0) return;
     items[index] = replacement;
     state = AsyncValue.data(ArmouryState(items: items));
+  }
+
+  Future<void> _syncNow() async {
+    final coordinator = ref.read(syncCoordinatorProvider);
+    await coordinator.syncOnce();
+    await _refreshFromLocal();
+  }
+
+  Future<void> _refreshFromLocal() async {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncValue.data(ArmouryState(items: await _repository.getAll()));
   }
 }

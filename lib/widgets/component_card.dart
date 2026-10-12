@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/theme.dart';
 import '../models/component.dart';
 import '../providers/theme_provider.dart';
+import '../providers/viewmodels/auth_viewmodel.dart';
 import 'component_image_view.dart';
 import 'terminal_button.dart';
 
@@ -10,7 +12,6 @@ class ComponentCard extends ConsumerWidget {
   final Component component;
   final ValueChanged<Component> onUpdate;
   final ValueChanged<String> onDelete;
-  final ValueChanged<Component> onOpenUpload;
   final ValueChanged<Component>? onEdit;
 
   const ComponentCard({
@@ -18,7 +19,6 @@ class ComponentCard extends ConsumerWidget {
     required this.component,
     required this.onUpdate,
     required this.onDelete,
-    required this.onOpenUpload,
     this.onEdit,
   });
 
@@ -48,11 +48,11 @@ class ComponentCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         title: Text(
-          'PURGE RECORD',
+          'ARCHIVE RECORD',
           style: AppTypography.heading(color: AppColors.fg),
         ),
         content: Text(
-          'Delete component ${component.id} (${component.name}) from offline repository?',
+          'Archive ${component.name}? It can be restored for one week.',
           style: AppTypography.body(color: AppColors.dim),
         ),
         actions: [
@@ -78,6 +78,10 @@ class ComponentCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLight = ref.watch(themeProvider);
+    final canEdit = ref.watch(authViewModelProvider).canEdit;
+    final subtitle = component.location.trim().isNotEmpty
+        ? component.location.trim()
+        : component.subcategory.trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -114,7 +118,10 @@ class ComponentCard extends ConsumerWidget {
           if (_hasImage) ...[
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320, maxHeight: 320),
+                constraints: const BoxConstraints(
+                  maxWidth: 320,
+                  maxHeight: 320,
+                ),
                 child: AspectRatio(
                   aspectRatio: 1.0,
                   child: Stack(
@@ -122,15 +129,21 @@ class ComponentCard extends ConsumerWidget {
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: isLight ? const Color(0xFFF1F5F9) : const Color(0x10FFFFFF),
+                          color: isLight
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0x10FFFFFF),
                           border: Border.all(
-                            color: isLight ? const Color(0xFFCBD5E1) : const Color(0x40FFFFFF),
+                            color: isLight
+                                ? const Color(0xFFCBD5E1)
+                                : const Color(0x40FFFFFF),
                             width: 1.0,
                           ),
                           borderRadius: BorderRadius.circular(4),
                           boxShadow: [
                             BoxShadow(
-                              color: isLight ? const Color(0x15000000) : const Color(0x50000000),
+                              color: isLight
+                                  ? const Color(0x15000000)
+                                  : const Color(0x50000000),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -144,30 +157,6 @@ class ComponentCard extends ConsumerWidget {
                             width: double.infinity,
                             height: double.infinity,
                           ),
-                        ),
-                      ),
-                      // HUD Quick Action Buttons
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Row(
-                          children: [
-                            TerminalButton(
-                              label: '↑',
-                              compact: true,
-                              variant: TerminalButtonVariant.secondary,
-                              onPressed: () => onOpenUpload(component),
-                            ),
-                            const SizedBox(width: 4),
-                            TerminalButton(
-                              label: '✕',
-                              compact: true,
-                              variant: TerminalButtonVariant.secondary,
-                              onPressed: () {
-                                onUpdate(component.copyWith(image: 'none'));
-                              },
-                            ),
-                          ],
                         ),
                       ),
                     ],
@@ -185,17 +174,20 @@ class ComponentCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      component.name,
-                      style: AppTypography.heading(color: AppColors.fg),
+                    GestureDetector(
+                      onTap: onEdit == null ? null : () => onEdit!(component),
+                      child: Text(
+                        component.name,
+                        style: AppTypography.heading(color: AppColors.fg),
+                      ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      component.subcategory.trim().isNotEmpty
-                          ? 'ID: ${component.id} · ${component.subcategory}'
-                          : 'ID: ${component.id}',
-                      style: AppTypography.caption(color: AppColors.dim),
-                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTypography.caption(color: AppColors.dim),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -216,10 +208,7 @@ class ComponentCard extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Text(
                 'SPEC: ${component.specs}',
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  color: AppColors.dim,
-                ),
+                style: AppTypography.mono(fontSize: 11, color: AppColors.dim),
               ),
             ),
             const SizedBox(height: 6),
@@ -256,7 +245,7 @@ class ComponentCard extends ConsumerWidget {
                   TerminalButton(
                     label: '-',
                     compact: true,
-                    onPressed: component.qty > 0
+                    onPressed: canEdit && component.qty > 0
                         ? () {
                             onUpdate(
                               component.copyWith(qty: component.qty - 1),
@@ -268,11 +257,13 @@ class ComponentCard extends ConsumerWidget {
                   TerminalButton(
                     label: '+',
                     compact: true,
-                    onPressed: () {
-                      onUpdate(
-                        component.copyWith(qty: component.qty + 1),
-                      );
-                    },
+                    onPressed: canEdit
+                        ? () {
+                            onUpdate(
+                              component.copyWith(qty: component.qty + 1),
+                            );
+                          }
+                        : null,
                   ),
                 ],
               ),
@@ -295,47 +286,48 @@ class ComponentCard extends ConsumerWidget {
             const SizedBox(height: 8),
           ],
 
-          // 7. Footer: Move to other spaces, Edit & Purge
-          Row(
-            children: [
-              Text(
-                'MOVE:',
-                style: AppTypography.caption(color: AppColors.dim),
-              ),
-              const SizedBox(width: 6),
-              ...ComponentNamespace.values
-                  .where((ns) => ns != component.namespace)
-                  .map((ns) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: TerminalButton(
-                    label: ns.keyName.toUpperCase(),
-                    compact: true,
-                    variant: TerminalButtonVariant.subtle,
-                    onPressed: () {
-                      onUpdate(component.copyWith(namespace: ns));
-                    },
-                  ),
-                );
-              }),
-              const Spacer(),
-              if (onEdit != null) ...[
-                TerminalButton(
-                  label: '✎ EDIT',
-                  compact: true,
-                  variant: TerminalButtonVariant.secondary,
-                  onPressed: () => onEdit!(component),
+          // 7. Footer: Move, edit, or archive the component
+          if (canEdit)
+            Row(
+              children: [
+                Text(
+                  'MOVE:',
+                  style: AppTypography.caption(color: AppColors.dim),
                 ),
                 const SizedBox(width: 6),
+                ...ComponentNamespace.values
+                    .where((ns) => ns != component.namespace)
+                    .map((ns) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: TerminalButton(
+                          label: ns.keyName.toUpperCase(),
+                          compact: true,
+                          variant: TerminalButtonVariant.subtle,
+                          onPressed: () {
+                            onUpdate(component.copyWith(namespace: ns));
+                          },
+                        ),
+                      );
+                    }),
+                const Spacer(),
+                if (onEdit != null && canEdit) ...[
+                  TerminalButton(
+                    label: '✎ EDIT',
+                    compact: true,
+                    variant: TerminalButtonVariant.secondary,
+                    onPressed: () => onEdit!(component),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                TerminalButton(
+                  label: 'PURGE',
+                  compact: true,
+                  variant: TerminalButtonVariant.danger,
+                  onPressed: () => _confirmDelete(context),
+                ),
               ],
-              TerminalButton(
-                label: 'PURGE',
-                compact: true,
-                variant: TerminalButtonVariant.danger,
-                onPressed: () => _confirmDelete(context),
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );

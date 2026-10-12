@@ -1,4 +1,17 @@
-import '../widgets/status_badge.dart';
+enum ComponentStatusType {
+  available,
+  low,
+  depleted,
+  checkedOut;
+
+  static ComponentStatusType fromString(String? value) =>
+      switch (value?.toLowerCase().trim()) {
+        'low' || 'low stock' => ComponentStatusType.low,
+        'depleted' || 'out of stock' => ComponentStatusType.depleted,
+        'checked out' || 'checkedout' => ComponentStatusType.checkedOut,
+        _ => ComponentStatusType.available,
+      };
+}
 
 enum ComponentNamespace {
   crate,
@@ -71,9 +84,8 @@ class Component {
       location: json['location']?.toString() ?? '',
       specs: json['specs']?.toString() ?? '',
       status: ComponentStatusType.fromString(json['status']?.toString()),
-      tags: (json['tags'] as List<dynamic>?)
-              ?.map((t) => t.toString())
-              .toList() ??
+      tags:
+          (json['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ??
           [],
       created: json['created']?.toString() ?? '',
       updated: json['updated']?.toString() ?? '',

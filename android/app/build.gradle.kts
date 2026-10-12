@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.orcus.armoury_flutter"
+    namespace = "com.armoury"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.orcus.armoury_flutter"
+        applicationId = "com.armoury"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

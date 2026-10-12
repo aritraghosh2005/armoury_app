@@ -1,30 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../core/theme.dart';
+import '../models/component.dart';
 
-enum ComponentStatusType {
-  available,
-  low,
-  depleted,
-  checkedOut;
-
-  static ComponentStatusType fromString(String? val) {
-    if (val == null) return ComponentStatusType.available;
-    switch (val.toLowerCase().trim()) {
-      case 'low':
-      case 'low stock':
-        return ComponentStatusType.low;
-      case 'depleted':
-      case 'out of stock':
-        return ComponentStatusType.depleted;
-      case 'checked out':
-      case 'checkedout':
-        return ComponentStatusType.checkedOut;
-      case 'available':
-      default:
-        return ComponentStatusType.available;
-    }
-  }
-
+extension ComponentStatusPresentation on ComponentStatusType {
   String get label {
     switch (this) {
       case ComponentStatusType.available:

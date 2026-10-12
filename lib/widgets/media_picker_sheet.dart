@@ -137,7 +137,7 @@ class _MediaPickerSheetState extends ConsumerState<MediaPickerSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '[ATTACH MEDIA // ${widget.component.id}]',
+                    'ATTACH MEDIA',
                     style: AppTypography.heading(color: AppColors.fg),
                   ),
                   GestureDetector(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/filters/component_filter.dart';
 import '../../models/component.dart';
 import 'armoury_viewmodel.dart';
 
@@ -17,42 +18,17 @@ final filteredComponentsProvider =
         ),
       );
       final query = ref.watch(
-        searchViewModelProvider.select(
-          (state) => state.query.trim().toLowerCase(),
-        ),
+        searchViewModelProvider.select((state) => state.query),
       );
       final domain = ref.watch(
-        searchViewModelProvider.select(
-          (state) => state.domain.trim().toLowerCase(),
-        ),
+        searchViewModelProvider.select((state) => state.domain),
       );
-      return items
-          .where((item) {
-            if (namespace != null && item.namespace != namespace) return false;
-            final category = item.category.toLowerCase();
-            if (domain == 'others' &&
-                (category == 'mechanical' || category == 'electrical')) {
-              return false;
-            }
-            if (domain.isNotEmpty &&
-                domain != 'all' &&
-                domain != 'others' &&
-                category != domain) {
-              return false;
-            }
-            if (query.isEmpty) return true;
-            return [
-              item.name,
-              item.id,
-              item.desc,
-              item.specs,
-              item.location,
-              item.category,
-              item.subcategory,
-              ...item.tags,
-            ].any((value) => value.toLowerCase().contains(query));
-          })
-          .toList(growable: false);
+      return ComponentFilter.apply(
+        items: items,
+        namespace: namespace,
+        query: query,
+        domain: domain,
+      );
     });
 
 class SearchState {

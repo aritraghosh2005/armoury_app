@@ -1,0 +1,4 @@
+services:
+  api:
+    ports:
+      - "${ARMOURY_HOST_PORT:-8000}:8000"

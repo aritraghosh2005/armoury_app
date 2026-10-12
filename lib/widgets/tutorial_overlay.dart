@@ -1,7 +1,9 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/theme.dart';
 import '../providers/tutorial_provider.dart';
 import 'terminal_button.dart';
@@ -75,17 +77,13 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
             // 1. High-Density Frosted Optical Glass Backdrop
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.86),
-              ),
+              child: Container(color: Colors.black.withValues(alpha: 0.86)),
             ),
 
             // 2. Scanline HUD Pattern
             Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _ScanlinePainter(),
-                ),
+                child: CustomPaint(painter: _ScanlinePainter()),
               ),
             ),
 
@@ -93,7 +91,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
             SafeArea(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Container(
                     constraints: BoxConstraints(
                       maxWidth: 440,
@@ -157,7 +158,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                               GestureDetector(
                                 onTap: _finish,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   child: Text(
                                     '[✕ CLOSE]',
                                     style: AppTypography.mono(
@@ -176,7 +180,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                         Flexible(
                           child: SingleChildScrollView(
                             physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               mainAxisSize: MainAxisSize.min,
@@ -197,7 +204,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
 
                         // Navigation Control Deck
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: const BoxDecoration(
                             color: Color(0xFF11161B),
                             border: Border(
@@ -262,26 +272,33 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'HEADER BAR // TOP-RIGHT',
+                    'SHARED INVENTORY ACCESS',
                     style: AppTypography.caption(color: Colors.white54),
                   ),
                   AnimatedBuilder(
                     animation: _pulseAnimation,
                     builder: (context, _) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         border: Border.all(
-                          color: Color.lerp(Colors.white, const Color(0xFF55FF55), _pulseAnimation.value)!,
+                          color: Color.lerp(
+                            Colors.white,
+                            const Color(0xFF55FF55),
+                            _pulseAnimation.value,
+                          )!,
                           width: 1.5,
                         ),
                       ),
                       child: const Text(
-                        '☼ / ☾',
+                        'READY',
                         style: TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontFamily: 'monospace',
                         ),
                       ),
@@ -291,7 +308,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
               ),
               const SizedBox(height: 6),
               Text(
-                'ONE-TAP INSTANT PALETTE SWITCH',
+                'ACCESS APPROVED · INVENTORY READY',
                 style: AppTypography.caption(color: Colors.white70),
               ),
             ],
@@ -311,7 +328,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '← SWIPE HORIZONTALLY TO CYCLE SPACES →',
+                'BROWSE · ADD · EDIT · MOVE',
                 style: AppTypography.caption(color: Colors.white70),
               ),
               const SizedBox(height: 8),
@@ -319,11 +336,20 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _spaceBadge('ARMOURY', active: true),
-                  const Text('⇄', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  const Text(
+                    '⇄',
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
                   _spaceBadge('CRATE'),
-                  const Text('⇄', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  const Text(
+                    '⇄',
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
                   _spaceBadge('TOOLKIT'),
-                  const Text('⇄', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  const Text(
+                    '⇄',
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
                   _spaceBadge('CUPBOARD'),
                 ],
               ),
@@ -356,14 +382,18 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                     const SizedBox(width: 6),
                     Text(
                       'QUERY: STM32F401_',
-                      style: AppTypography.mono(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'DOUBLE-TAP HEADER OR TAP [SEARCH_]',
+                'DOUBLE-TAP OPEN AREA OR TAP [SEARCH_]',
                 style: AppTypography.caption(color: Colors.white54),
               ),
             ],
@@ -400,12 +430,12 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '01 // THEME TOGGLE (TOP-RIGHT)',
+              '01 // SHARED ACCESS',
               style: AppTypography.heading(color: Colors.white),
             ),
             const SizedBox(height: 4),
             Text(
-              'Tap the [☼ LIGHT / ☾ OLED] button in the TOP-RIGHT corner of the header to switch between OLED Pitch Black and High-Contrast Light theme. Follows your device system theme by default.',
+              'Your account is approved. The controls available to you depend on your access level. Accounts with edit access can add, change, and archive components. Previously approved devices can use cached inventory offline; access changes take effect when the device reconnects.',
               style: AppTypography.body(color: Colors.white70),
             ),
           ],
@@ -422,7 +452,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
             ),
             const SizedBox(height: 4),
             Text(
-              'Swipe horizontally across the glass viewport to switch spaces with infinite circular wrapping: Armoury -> Crate -> Toolkit -> Cupboard.',
+              'Swipe horizontally or use the bottom tabs to browse Armoury, Crate, Toolkit, and Cupboard. You can browse each space. If your account has edit access, you can add components. Open a component to edit its details or picture; use the card actions to edit or PURGE it. PURGE moves it to the archive rather than deleting it immediately.',
               style: AppTypography.body(color: Colors.white70),
             ),
           ],
@@ -440,7 +470,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
             ),
             const SizedBox(height: 4),
             Text(
-              'DOUBLE-TAP the top header or press [SEARCH_] to activate the real-time search deck across names, serials, and categories.',
+              'Search by double-tapping an open area or pressing [SEARCH_]. Adds create independent items. Edits apply to the latest shared details; archiving removes an item from every synced device even if another device still had it open. Changes show in CONFIG → RECENT ACTIVITY with the person, device, and time. Deleted items stay in CONFIG → ARCHIVE for one week, where accounts with edit access can restore or permanently remove them.',
               style: AppTypography.body(color: Colors.white70),
             ),
           ],

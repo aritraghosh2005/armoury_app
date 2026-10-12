@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/theme.dart';
 import '../models/component.dart';
 import '../providers/theme_provider.dart';
+import '../providers/viewmodels/auth_viewmodel.dart';
 import 'component_image_view.dart';
 import 'new_component_sheet.dart';
 import 'terminal_button.dart';
@@ -19,7 +21,6 @@ class ItemDetailSheet extends ConsumerWidget {
   final Component component;
   final ValueChanged<Component> onUpdate;
   final ValueChanged<String> onDelete;
-  final ValueChanged<Component> onOpenUpload;
   final ValueChanged<Component>? onEdit;
 
   const ItemDetailSheet({
@@ -27,7 +28,6 @@ class ItemDetailSheet extends ConsumerWidget {
     required this.component,
     required this.onUpdate,
     required this.onDelete,
-    required this.onOpenUpload,
     this.onEdit,
   });
 
@@ -36,7 +36,6 @@ class ItemDetailSheet extends ConsumerWidget {
     required Component component,
     required ValueChanged<Component> onUpdate,
     required ValueChanged<String> onDelete,
-    required ValueChanged<Component> onOpenUpload,
     ValueChanged<Component>? onEdit,
   }) {
     final isLight = AppColors.isLight;
@@ -49,7 +48,6 @@ class ItemDetailSheet extends ConsumerWidget {
         component: component,
         onUpdate: onUpdate,
         onDelete: onDelete,
-        onOpenUpload: onOpenUpload,
         onEdit: onEdit,
       ),
     );
@@ -60,47 +58,18 @@ class ItemDetailSheet extends ConsumerWidget {
       component.image!.isNotEmpty &&
       component.image!.toLowerCase() != 'none';
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bg,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(color: AppColors.borderSubtle, width: 1),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        title: Text(
-          'PURGE RECORD',
-          style: AppTypography.heading(color: AppColors.fg),
-        ),
-        content: Text(
-          'Delete component ${component.id} (${component.name}) from offline repository?',
-          style: AppTypography.body(color: AppColors.dim),
-        ),
-        actions: [
-          TerminalButton(
-            label: 'CANCEL',
-            compact: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-          TerminalButton(
-            label: 'PURGE',
-            compact: true,
-            variant: TerminalButtonVariant.danger,
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pop();
-              onDelete(component.id);
-            },
-          ),
-        ],
-      ),
-    );
+  String _formatTimestamp(String value) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return value;
+    final local = date.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    return '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')} ${local.hour >= 12 ? 'PM' : 'AM'}';
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLight = ref.watch(themeProvider);
+    final canEdit = ref.watch(authViewModelProvider).canEdit;
     final systemBottom = MediaQuery.of(context).viewPadding.bottom;
     final isButtonNav = systemBottom > 24.0;
     final bottomInset = isButtonNav
@@ -133,271 +102,271 @@ class ItemDetailSheet extends ConsumerWidget {
                 ),
           border: Border(
             top: BorderSide(
-              color: isLight ? const Color(0xFFCBD5E1) : const Color(0x60FFFFFF),
+              color: isLight
+                  ? const Color(0xFFCBD5E1)
+                  : const Color(0x60FFFFFF),
               width: 1.0,
             ),
           ),
           boxShadow: [
             BoxShadow(
-              color: isLight ? const Color(0x20000000) : const Color(0xDD000000),
+              color: isLight
+                  ? const Color(0x20000000)
+                  : const Color(0xDD000000),
               blurRadius: 36,
               offset: const Offset(0, -8),
             ),
           ],
         ),
-          padding: EdgeInsets.only(
-            top: 14,
-            left: 16,
-            right: 16,
-            bottom: bottomInset + 12,
-          ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.88,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        '[${component.namespace.keyName.toUpperCase()}]',
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.dim,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        component.category.toUpperCase(),
-                        style: AppTypography.caption(color: AppColors.dim),
-                      ),
-                    ],
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Text(
-                        '[✕]',
-                        style: AppTypography.mono(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.fg,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(height: 1, color: AppColors.dividerLine),
-              const SizedBox(height: 12),
-
-              // Scrollable Content
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+        padding: EdgeInsets.only(
+          top: 14,
+          left: 16,
+          right: 16,
+          bottom: bottomInset + 12,
+        ),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
                   children: [
-                    // Square Image Frame
-                    if (_hasImage) ...[
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: 280,
-                            maxHeight: 280,
-                          ),
-                          child: AspectRatio(
-                            aspectRatio: 1.0,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: isLight ? const Color(0xFFF1F5F9) : const Color(0x12FFFFFF),
-                                    border: Border.all(
-                                      color: isLight ? const Color(0xFFCBD5E1) : const Color(0x40FFFFFF),
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: isLight ? const Color(0x15000000) : const Color(0x50000000),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(3),
-                                    child: ComponentImageView(
-                                      imageSource: component.image,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 8,
-                                  right: 8,
-                                  child: Row(
-                                    children: [
-                                      TerminalButton(
-                                        label: '↑',
-                                        compact: true,
-                                        variant: TerminalButtonVariant.secondary,
-                                        onPressed: () => onOpenUpload(component),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      TerminalButton(
-                                        label: '✕',
-                                        compact: true,
-                                        variant: TerminalButtonVariant.secondary,
-                                        onPressed: () {
-                                          onUpdate(component.copyWith(image: 'none'));
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                    Text(
+                      '[${component.namespace.keyName.toUpperCase()}]',
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.dim,
                       ),
-                      const SizedBox(height: 14),
-                    ],
-                    // Component Title & ID
-                    Text(
-                      component.name,
-                      style: AppTypography.title(color: AppColors.fg),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(width: 8),
                     Text(
-                      component.subcategory.trim().isNotEmpty
-                          ? 'ID: ${component.id} · ${component.subcategory}'
-                          : 'ID: ${component.id}',
+                      component.category.toUpperCase(),
                       style: AppTypography.caption(color: AppColors.dim),
                     ),
-                    const SizedBox(height: 10),
-                    Container(height: 1, color: AppColors.dividerLine),
-                    const SizedBox(height: 10),
-
-                    // Description (Hide if empty)
-                    if (component.desc.trim().isNotEmpty) ...[
-                      Text(
-                        component.desc,
-                        style: AppTypography.body(color: AppColors.fg),
+                  ],
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Text(
+                      '[✕]',
+                      style: AppTypography.mono(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.fg,
                       ),
-                      const SizedBox(height: 10),
-                    ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(height: 1, color: AppColors.dividerLine),
+            const SizedBox(height: 12),
 
-                    // Technical Specifications (Hide if empty)
-                    if (component.specs.trim().isNotEmpty) ...[
-                      Text(
-                        'SPECIFICATION:',
-                        style: AppTypography.caption(color: AppColors.dim),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        component.specs,
-                        style: AppTypography.mono(
-                          fontSize: 12,
-                          color: AppColors.fg,
+            // Scrollable Content
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  // Square Image Frame
+                  if (_hasImage) ...[
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 280,
+                          maxHeight: 280,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-
-                    // Location (Hide if empty) & Quantity Controls
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (component.location.trim().isNotEmpty)
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'LOCATION:',
-                                  style: AppTypography.caption(color: AppColors.dim),
+                        child: AspectRatio(
+                          aspectRatio: 1.0,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: isLight
+                                      ? const Color(0xFFF1F5F9)
+                                      : const Color(0x12FFFFFF),
+                                  border: Border.all(
+                                    color: isLight
+                                        ? const Color(0xFFCBD5E1)
+                                        : const Color(0x40FFFFFF),
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isLight
+                                          ? const Color(0x15000000)
+                                          : const Color(0x50000000),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  component.location,
-                                  style: AppTypography.mono(
-                                    fontSize: 12,
-                                    color: AppColors.fg,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: ComponentImageView(
+                                    imageSource: component.image,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
                                   ),
                                 ),
-                              ],
-                            ),
-                          )
-                        else
-                          const Spacer(),
-                        Row(
-                          children: [
-                            Text(
-                              'QTY: ${component.qty}',
-                              style: AppTypography.mono(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.fg,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            TerminalButton(
-                              label: '-',
-                              compact: true,
-                              onPressed: component.qty > 0
-                                  ? () {
-                                      onUpdate(component.copyWith(
-                                        qty: component.qty - 1,
-                                      ));
-                                    }
-                                  : null,
-                            ),
-                            const SizedBox(width: 4),
-                            TerminalButton(
-                              label: '+',
-                              compact: true,
-                              onPressed: () {
-                                onUpdate(component.copyWith(
-                                  qty: component.qty + 1,
-                                ));
-                              },
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  // Component title and last CRUD timestamps
+                  Text(
+                    component.name,
+                    style: AppTypography.title(color: AppColors.fg),
+                  ),
+                  const SizedBox(height: 4),
+                  if (component.subcategory.trim().isNotEmpty)
+                    Text(
+                      component.subcategory,
+                      style: AppTypography.caption(color: AppColors.dim),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'CREATED ${_formatTimestamp(component.created)}  ·  UPDATED ${_formatTimestamp(component.updated)}',
+                    style: AppTypography.caption(color: AppColors.dim),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(height: 1, color: AppColors.dividerLine),
+                  const SizedBox(height: 10),
+
+                  // Description (Hide if empty)
+                  if (component.desc.trim().isNotEmpty) ...[
+                    Text(
+                      component.desc,
+                      style: AppTypography.body(color: AppColors.fg),
                     ),
                     const SizedBox(height: 10),
+                  ],
 
-                    // Tags
-                    if (component.tags.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: component.tags.map((tag) {
-                          return Text(
-                            '#$tag',
-                            style: AppTypography.caption(color: AppColors.dim),
-                          );
-                        }).toList(),
+                  // Technical Specifications (Hide if empty)
+                  if (component.specs.trim().isNotEmpty) ...[
+                    Text(
+                      'SPECIFICATION:',
+                      style: AppTypography.caption(color: AppColors.dim),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      component.specs,
+                      style: AppTypography.mono(
+                        fontSize: 12,
+                        color: AppColors.fg,
                       ),
-                      const SizedBox(height: 14),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // Location (Hide if empty) & Quantity Controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (component.location.trim().isNotEmpty)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'LOCATION:',
+                                style: AppTypography.caption(
+                                  color: AppColors.dim,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                component.location,
+                                style: AppTypography.mono(
+                                  fontSize: 12,
+                                  color: AppColors.fg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      Row(
+                        children: [
+                          Text(
+                            'QTY: ${component.qty}',
+                            style: AppTypography.mono(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.fg,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TerminalButton(
+                            label: '-',
+                            compact: true,
+                            onPressed: canEdit && component.qty > 0
+                                ? () {
+                                    onUpdate(
+                                      component.copyWith(
+                                        qty: component.qty - 1,
+                                      ),
+                                    );
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 4),
+                          TerminalButton(
+                            label: '+',
+                            compact: true,
+                            onPressed: canEdit
+                                ? () {
+                                    onUpdate(
+                                      component.copyWith(
+                                        qty: component.qty + 1,
+                                      ),
+                                    );
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
 
-                    Container(height: 1, color: AppColors.dividerLine),
-                    const SizedBox(height: 12),
+                  // Tags
+                  if (component.tags.isNotEmpty) ...[
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: component.tags.map((tag) {
+                        return Text(
+                          '#$tag',
+                          style: AppTypography.caption(color: AppColors.dim),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
 
-                    // Relocate & Purge Actions
+                  Container(height: 1, color: AppColors.dividerLine),
+                  const SizedBox(height: 12),
+
+                  // Relocate & Purge Actions
+                  if (canEdit)
                     Row(
                       children: [
                         Text(
@@ -408,31 +377,26 @@ class ItemDetailSheet extends ConsumerWidget {
                         ...ComponentNamespace.values
                             .where((ns) => ns != component.namespace)
                             .map((ns) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: TerminalButton(
-                              label: ns.keyName.toUpperCase(),
-                              compact: true,
-                              variant: TerminalButtonVariant.subtle,
-                              onPressed: () {
-                                onUpdate(component.copyWith(namespace: ns));
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                          );
-                        }),
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: TerminalButton(
+                                  label: ns.keyName.toUpperCase(),
+                                  compact: true,
+                                  variant: TerminalButtonVariant.subtle,
+                                  onPressed: () {
+                                    onUpdate(component.copyWith(namespace: ns));
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              );
+                            }),
                         const Spacer(),
-                        TerminalButton(
-                          label: 'PURGE',
-                          compact: true,
-                          variant: TerminalButtonVariant.danger,
-                          onPressed: () => _confirmDelete(context),
-                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                    // Modify Details Button
+                  // Modify Details Button
+                  if (canEdit)
                     SizedBox(
                       width: double.infinity,
                       child: TerminalButton(
@@ -449,17 +413,18 @@ class ItemDetailSheet extends ConsumerWidget {
                               onUpdate: (updated) async {
                                 onUpdate(updated);
                               },
+                              onDelete: (id) async => onDelete(id),
                             );
                           }
                         },
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 }

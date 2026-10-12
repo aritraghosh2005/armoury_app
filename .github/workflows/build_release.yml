@@ -38,6 +38,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -63,10 +68,36 @@ jobs:
       - name: Run Tests
         run: flutter test
 
+      - name: Check backend source and unit tests
+        run: |
+          python -m compileall -q backend/app backend/tests
+          python -m unittest discover -s backend/tests -v
+
+      - name: Validate Docker Compose configurations
+        run: |
+          docker compose --env-file .env.example -f compose.yaml config --quiet
+          docker compose --env-file .env.example -f compose.yaml -f compose.dev.yaml config --quiet
+          docker compose --env-file .env.example -f compose.yaml -f compose.dev.yaml -f compose.test.yaml config --quiet
+
+      - name: Start backend integration stack
+        run: docker compose --env-file .env.example -f compose.yaml -f compose.dev.yaml -f compose.test.yaml up --build -d --wait --wait-timeout 120
+
+      - name: Run backend integration tests
+        env:
+          ARMOURY_TEST_API_URL: http://localhost:8000
+        run: python -m unittest discover -s backend/tests -v
+
+      - name: Stop backend integration stack
+        if: always()
+        run: docker compose --env-file .env.example -f compose.yaml -f compose.dev.yaml -f compose.test.yaml down -v --remove-orphans
+
   build-android:
     name: Build Android APKs & AAB
     needs: validate
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://iilbtnmzdmlftowsybsi.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_Ar82gZ60Y_1MCmIz7XpbdQ_tdZ1o-yX' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -97,6 +128,22 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Verify Supabase configuration for distributable builds
+        if: github.event_name != 'pull_request'
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "Configure the SUPABASE_URL repository secret before building distributable APKs."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Configure SUPABASE_PUBLISHABLE_KEY with the project's public publishable key before building distributable APKs."
+            exit 1
+          fi
+          case "$SUPABASE_URL" in
+            https://*) ;;
+            *) echo "SUPABASE_URL must use HTTPS for distributable builds."; exit 1 ;;
+          esac
+
       - name: Configure Keystore (Optional Secrets)
         id: keystore
         env:
@@ -119,13 +166,13 @@ jobs:
           fi
 
       - name: Build Universal Release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Build Split-per-ABI Release APKs
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Build Google Play App Bundle (AAB)
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --dart-define=SUPABASE_URL="$SUPABASE_URL" --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Prepare Artifact Directory
         run: |
