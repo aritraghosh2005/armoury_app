@@ -27,12 +27,28 @@ bearer = HTTPBearer(auto_error=False)
 
 
 def _google_identity(token: str) -> dict[str, Any]:
-    if os.environ.get("APP_ENV") == "testing" and os.environ.get("ARMOURY_TEST_AUTH_BYPASS") == "1" and token == "armoury-integration-test-token":
-        return {"sub": "integration-test-user", "email": "integration@example.invalid", "email_verified": True, "name": "Integration Test"}
-    if os.environ.get("APP_ENV") == "testing" and os.environ.get("ARMOURY_TEST_AUTH_BYPASS") == "1" and token.startswith("armoury-test:"):
-        parts = token.split(":", 2)
-        if len(parts) == 3 and parts[1] and parts[2]:
-            return {"sub": parts[1], "email": parts[2], "email_verified": True, "name": parts[2].split("@", 1)[0]}
+    test_auth_enabled = (
+        os.environ.get("APP_ENV") == "testing"
+        and os.environ.get("ARMOURY_TEST_AUTH_BYPASS") == "1"
+    )
+    if test_auth_enabled:
+        if token == "armoury-integration-test-token":
+            return {
+                "sub": "integration-test-user",
+                "email": "integration@example.invalid",
+                "email_verified": True,
+                "name": "Integration Test",
+            }
+        if token.startswith("armoury-test:"):
+            parts = token.split(":", 2)
+            if len(parts) == 3 and parts[1] and parts[2]:
+                return {
+                    "sub": parts[1],
+                    "email": parts[2],
+                    "email_verified": True,
+                    "name": parts[2].split("@", 1)[0],
+                }
+        raise HTTPException(status_code=401, detail="Invalid test identity token")
     if not GOOGLE_SERVER_CLIENT_ID:
         raise HTTPException(status_code=503, detail="Google sign-in is not configured")
     try:
